@@ -218,6 +218,7 @@ export const superclassShouldBeLastInLinearization = error<Class | Singleton>(no
   return !hasSuperclass || !!lastParentInHierarchy && lastParentInHierarchy.is(Class)
 })
 
+/*
 export const shouldMatchSuperclassReturnValue = error<Method>(node => {
   if (!node.isOverride) return true
   const overridenMethod = superclassMethod(node)
@@ -225,6 +226,41 @@ export const shouldMatchSuperclassReturnValue = error<Method>(node => {
   const lastSentence = last(node.sentences)
   const superclassSentence = last(overridenMethod.sentences)
   return !lastSentence || !superclassSentence || lastSentence.is(Return) === superclassSentence.is(Return) || lastSentence.is(Throw) || superclassSentence.is(Throw)
+}, valuesForNodeName, sourceMapForBody)
+*/
+
+export const shouldMatchSuperclassReturnValue = error<Method>(node => {
+  if (!node.isOverride) return true
+  const overridenMethod = superclassMethod(node)
+  if (!overridenMethod || overridenMethod.isAbstract() || overridenMethod.isNative()) return true
+
+  const lastSentence = last(node.sentences)
+  const superclassSentence = last(overridenMethod.sentences)
+
+  // si los dos NO tienen sentencias -> ok
+  if (!lastSentence && !superclassSentence) return true
+
+  // si uno NO tiene sentencias y el otro no termina en return -> ok
+  if (!lastSentence) return !endsWithReturn(superclassSentence)
+  if (!superclassSentence) return !endsWithReturn(lastSentence)
+
+  // si ambos tienen sentencias -> ambos deben terminan ambos en return o alguno en throw
+  return endsWithReturn(lastSentence) && endsWithReturn(superclassSentence) || lastSentence.is(Throw) || superclassSentence.is(Throw)
+
+  function endsWithReturn(sentence: any): boolean {
+    if (sentence.is(Return)) {
+      return true
+    }
+    if (sentence.is(If)) {
+      const lastThenSentence = last(sentence.thenBody.sentences)
+      const lastElseSentence = last(sentence.elseBody.sentences)
+      if (!lastThenSentence && !lastElseSentence) return false
+      if (!lastThenSentence) return endsWithReturn(lastElseSentence) // existe este caso ?
+      if (!lastElseSentence) return endsWithReturn(lastThenSentence)
+      return endsWithReturn(lastThenSentence) && endsWithReturn(lastElseSentence)
+    }
+    return false
+  }
 }, valuesForNodeName, sourceMapForBody)
 
 export const shouldReturnAValueOnAllFlows = error<If>(node => {
